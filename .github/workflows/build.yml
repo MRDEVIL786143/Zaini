@@ -31,13 +31,13 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Grant Execute Permission to Gradle Wrapper
-        run: chmod +x gradlew || true
+      - name: Ensure Gradle Wrapper Executable
+        run: chmod +x gradlew
 
       - name: Run Unit Tests
         run: ./gradlew testDebugUnitTest --stacktrace
 
-      - name: Run Lint
+      - name: Run Android Lint
         run: ./gradlew lintDebug
 
       - name: Upload Test Reports
@@ -64,43 +64,37 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Grant Execute Permission to Gradle Wrapper
-        run: chmod +x gradlew || true
+      - name: Ensure Gradle Wrapper Executable
+        run: chmod +x gradlew
+
+      - name: Configure Keystore for Release
+        run: |
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "Configuring release keystore from GitHub Secrets..."
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > "$GITHUB_WORKSPACE/release.keystore"
+            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/release.keystore" >> $GITHUB_ENV
+            echo "STORE_PASSWORD=${{ secrets.STORE_PASSWORD }}" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
+            echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
+          else
+            echo "No KEYSTORE_BASE64 secret found. Creating CI self-signed release keystore..."
+            keytool -genkey -v -keystore "$GITHUB_WORKSPACE/release.keystore" -alias upload -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=AndroidMacro, OU=Build, O=Automation, L=City, S=State, C=US"
+            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/release.keystore" >> $GITHUB_ENV
+            echo "STORE_PASSWORD=android" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=android" >> $GITHUB_ENV
+            echo "KEY_ALIAS=upload" >> $GITHUB_ENV
+          fi
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug
 
-      - name: Build Release APK (Unsigned)
+      - name: Build Release APK
         run: ./gradlew assembleRelease
 
-      - name: Decode Keystore for Signing
-        if: env.KEYSTORE_BASE64 != ''
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-        run: |
-          mkdir -p keystore
-          echo "$KEYSTORE_BASE64" | base64 --decode > keystore/release.keystore
-
-      - name: Sign Release APK
-        if: env.KEYSTORE_BASE64 != ''
-        id: sign_app
-        uses: r0adkll/sign-android-release@v1
-        with:
-          releaseDirectory: app/build/outputs/apk/release
-          signingKey: ${{ secrets.KEYSTORE_BASE64 }}
-          keyStorePassword: ${{ secrets.STORE_PASSWORD }}
-          alias: ${{ secrets.KEY_ALIAS }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
-        env:
-          BUILD_TOOLS_VERSION: "34.0.0"
-
-      - name: Prepare APK Artifacts
+      - name: Collect APK Outputs
         run: |
           mkdir -p output_artifacts
-          cp app/build/outputs/apk/debug/*.apk output_artifacts/ || true
-          if [ -d "app/build/outputs/apk/release" ]; then
-            cp app/build/outputs/apk/release/*.apk output_artifacts/ || true
-          fi
+          find app/build/outputs/apk -name "*.apk" -exec cp {} output_artifacts/ \;
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4

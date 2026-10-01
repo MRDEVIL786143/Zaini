@@ -237,15 +237,17 @@ class FloatingOverlayService : Service() {
     }
 
     private fun createNotification(): Notification {
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            "Macro Overlay Service",
-            NotificationManager.IMPORTANCE_LOW
-        ).apply {
-            description = "Maintains active floating macro control overlay"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Macro Overlay Service",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Maintains active floating macro control overlay"
+            }
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.createNotificationChannel(channel)
         }
-        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.createNotificationChannel(channel)
 
         val pendingIntent = PendingIntent.getActivity(
             this,
