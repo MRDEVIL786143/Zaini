@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Macro Recorder</string>
+    <string name="accessibility_service_description">Enables Macro Recorder to inject touch gestures and execute automated macro sequences across apps.</string>
+</resources>
